@@ -14,6 +14,7 @@ class ChatGPTAgent(Agent):
         self._model = model
 
     def __call__(self, messages, functions=[]):
+        print(messages)
         if functions == []:
             response = client.chat.completions.create(model=self._model,
                 messages=messages,
