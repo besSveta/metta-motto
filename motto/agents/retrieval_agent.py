@@ -99,5 +99,5 @@ class RetrievalAgent(Agent):
             next = doc.replace('"', "'")
             if next not in res:
                 res += next + "\n"
-
+        print("retrieval agent", res)
         return Response(f"\"{res}\"", None)
