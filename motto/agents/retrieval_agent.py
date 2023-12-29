@@ -2,6 +2,7 @@ import shutil
 import os
 import pathlib
 import concurrent.futures
+import site
 
 from .agent import Agent
 from .agent import Response
@@ -10,9 +11,9 @@ from .data_processors import OpenAIEmbeddings, DocProcessor
 
 def fix_for_chromabd(ex):
     if "sqlite3" in str(ex):
-        __import__('pysqlite3')
-        import sys
-        sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+        site_packages_path = site.getsitepackages()
+        pathlib.Path(os.path.join(site_packages_path[0], "google", 'colab')).mkdir(parents=True, exist_ok=True)
+        import chromadb
 
 class RetrievalAgent(Agent):
     max_length = 2270
