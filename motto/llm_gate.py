@@ -3,6 +3,7 @@ from hyperon.ext import register_atoms
 from .agents import *
 import json
 from .utils import *
+from biochatter import biochatter_metta
 
 import logging
 logger = logging.getLogger(__name__)
@@ -104,10 +105,10 @@ def get_llm_args(metta: MeTTa, prompt_space: SpaceRef, *args):
         messages += m
         functions += f
         msg_atoms += [a]
-
+    # print(args)
     for atom in args:
         # We first interpret the atom argument in the context of the main metta space.
-        # If the prompt template is in a separate file and contains some external 
+        # If the prompt template is in a separate file and contains some external
         # symbols like (user-query) or (chat-gpt model), they will be resolved here.
         # It is useful for messages, agents, as well as arbitrary code, which relies
         # on information from the agent.
@@ -198,7 +199,9 @@ def llm(metta: MeTTa, *args):
         (agent, params) = agent
     if isinstance(agent, str):
         # NOTE: We could pass metta here, but it is of no use atm
+        # print("yes it is string")
         agent = MettaAgent(agent)
+        print("this is metta agent", agent)
     if not isinstance(agent, Agent):
         raise TypeError(f"Agent {agent} should be of Agent type. Got {type(agent)}")
     if not isinstance(agent, MettaAgent):
@@ -209,6 +212,7 @@ def llm(metta: MeTTa, *args):
     try:
         response = agent(msgs_atom if isinstance(agent, MettaAgent) else messages,
                         functions, **params)
+        # print(response)
     except Exception as e:
         logger.error(e)
         raise e
@@ -216,6 +220,7 @@ def llm(metta: MeTTa, *args):
         fname = response.function_call.name
         fs = S(fname)
         args = response.function_call.arguments
+        # print(fname, fs, args)
         args = {} if args is None else \
             json.loads(args) if isinstance(args, str) else args
         # Here, we check if the arguments should be parsed to MeTTa
@@ -226,6 +231,7 @@ def llm(metta: MeTTa, *args):
                 if func["parameters"]["properties"][k]['metta-type'] == 'Atom':
                     args[k] = metta.parse_single(v)
         return [E(fs, to_nested_expr(list(args.values())), msgs_atom)]
+    print(f'this is {agent} type: {type(response.content)}')
     return response.content if isinstance(agent, MettaAgent) else \
            [ValueAtom(response.content)]
 
@@ -235,6 +241,7 @@ def llmgate_atoms(metta):
     global __default_agent
     __default_agent = ChatGPTAgent()
     llmAtom = OperationAtom('llm', lambda *args: llm(metta, *args), unwrap=False)
+    biochatterAtom = OperationAtom('biochatter', lambda *args: biochatter_metta(metta, *args), unwrap=False)
     # Just a helper function if one needs to print from a metta-script
     # the message converted from expression to text
     msgAtom = OperationAtom('atom2msg',
@@ -251,6 +258,7 @@ def llmgate_atoms(metta):
     concatStrAtom = OperationAtom('concat-str', lambda a, b: [ValueAtom(concat_str(a, b))], unwrap=False)
     return {
         r"llm": llmAtom,
+        r"biochatter": biochatterAtom,
         r"atom2msg": msgAtom,
         r"chat-gpt": chatGPTAtom,
         r"anthropic-agent": OperationAtom('anthropic-agent', AnthropicAgent),
