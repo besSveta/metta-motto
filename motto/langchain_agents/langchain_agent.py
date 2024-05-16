@@ -12,13 +12,9 @@ class LangchainAgent(DialogAgent):
 
     def _prepare(self, metta, msgs_atom):
         super()._prepare(metta, msgs_atom)
-
-        metta.space().add_atom(E(S('='), E(S('history')),
-                                 E(*self.history)))
         metta.space().add_atom(E(S('='), E(S('langchain-model')),
                                  self.model))
         # atm, we put the input message into the history by default
-
         self.history += [msgs_atom]
 
 
