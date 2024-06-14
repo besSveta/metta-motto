@@ -99,7 +99,8 @@ def get_llm_args(metta: MeTTa, prompt_space: SpaceRef, *args):
     messages = []
     functions = []
     msg_atoms = []
-    def __msg_update(ag, m, f, a):
+    return_stream = False
+    def __msg_update(ag, m, f, a, rs):
         nonlocal agent, messages, functions, msg_atoms
         if ag is not None:
             agent = ag
@@ -156,7 +157,7 @@ def get_llm_args(metta: MeTTa, prompt_space: SpaceRef, *args):
                     agent = ch[1]
                     # The agent can be a Python object or a string (filename)
                     if isinstance(agent, GroundedAtom):
-                        agent = agent.get_object().value
+                        agent = agent.get_object().content
                     elif isinstance(agent, SymbolAtom):
                         agent = agent.get_name()
                     else:
@@ -171,6 +172,10 @@ def get_llm_args(metta: MeTTa, prompt_space: SpaceRef, *args):
                     # it can contain equalities as well (another approach would be to
                     # ignore everythins except valid roles)
                     continue
+                elif name == "stream":
+                    bool_val = repr(ch[1]).lower()
+                    if bool_val in ["true", "false"]:
+                        return_stream = eval(bool_val[0].upper() + bool_val[1:])
                 else:
                     raise RuntimeError("Unrecognized argument: " + repr(arg))
             else:
@@ -182,12 +187,37 @@ def get_llm_args(metta: MeTTa, prompt_space: SpaceRef, *args):
     # Do not wrap a single message into Message (necessary to avoid double
     # wrapping of single Message argument)
     return agent, messages, functions, \
-        msg_atoms[0] if len(msg_atoms) == 1 else E(S('Messages'), *msg_atoms)
+        msg_atoms[0] if len(msg_atoms) == 1 else E(S('Messages'), *msg_atoms), return_stream
 
+def get_response(metta, response, functions):
+    if not hasattr(response, "tool_calls"):
+        return response
+    if response.tool_calls is not None:
+        result = []
+        for tool_call in response.tool_calls:
+            fname = tool_call.function.name
+            fs = S(fname)
+            args = tool_call.function.arguments if isinstance(tool_call.function.arguments, dict) else json.loads(
+                tool_call.function.arguments)
+            args = {} if args is None else \
+                json.loads(args) if isinstance(args, str) else args
+            # Here, we check if the arguments should be parsed to MeTTa
+            for func in functions:
+                if func["name"] != fname:
+                    continue
+                for k, v in args.items():
+                    if func["parameters"]["properties"][k]['metta-type'] == 'Atom':
+                        args[k] = metta.parse_single(v)
+            result.append(repr(E(fs, to_nested_expr(list(args.values())), msgs_atom)))
+        res = f"({' '.join(result)})" if len(result) > 1 else result[0]
+        val = metta.parse_single(res)
+        return [val]
+    return response.content if isinstance(agent, MettaAgent) else \
+        [ValueAtom(response.content)]
 
 def llm(metta: MeTTa, *args):
     try:
-        agent, messages, functions, msgs_atom = get_llm_args(metta, None, *args)
+        agent, messages, functions, msgs_atom, return_stream = get_llm_args(metta, None, *args)
     except Exception as e:
         # NOTE: we put the error into the log since it can be ignored by the caller
         logger.error(e)
@@ -209,32 +239,14 @@ def llm(metta: MeTTa, *args):
                 raise TypeError(f"GroundedAtom is expected as input to a non-MeTTa agent. Got type({params[p]})={type(params[p])}")
             params[p] = params[p].get_object().value
     try:
+        if return_stream:
+            params["stream"] = True
         response = agent(msgs_atom if isinstance(agent, MettaAgent) else messages,
                         functions, **params)
     except Exception as e:
         logger.error(e)
         raise e
-    if response.tool_calls is not None:
-        result  = []
-        for tool_call in response.tool_calls :
-            fname = tool_call.function.name
-            fs = S(fname)
-            args = tool_call.function.arguments if isinstance(tool_call.function.arguments, dict) else json.loads(tool_call.function.arguments)
-            args = {} if args is None else \
-                json.loads(args) if isinstance(args, str) else args
-            # Here, we check if the arguments should be parsed to MeTTa
-            for func in functions:
-                if func["name"] != fname:
-                    continue
-                for k, v in args.items():
-                    if func["parameters"]["properties"][k]['metta-type'] == 'Atom':
-                        args[k] = metta.parse_single(v)
-            result.append(repr(E(fs, to_nested_expr(list(args.values())), msgs_atom)))
-        res = f"({' '.join(result)})" if len(result) > 1 else result[0]
-        val = metta.parse_single(res)
-        return  [val]
-    return response.content if isinstance(agent, MettaAgent) else \
-           [ValueAtom(response.content)]
+    return get_response(metta, response, functions)
 
 
 @register_atoms(pass_metta=True)
