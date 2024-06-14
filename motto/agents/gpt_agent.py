@@ -26,7 +26,7 @@ class ChatGPTAgent(Agent):
         tools = []
         for func in functions:
             dict_values = {}
-            dict_values["type"] = "function";
+            dict_values["type"] = "function"
             dict_values["function"] = func
             tools.append(dict_values)
         response = client.chat.completions.create(model=self._model,

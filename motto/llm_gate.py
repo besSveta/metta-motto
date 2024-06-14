@@ -190,7 +190,7 @@ def get_response(metta,agent,  response, functions, msgs_atom):
 
     if not hasattr(response, "tool_calls"):
         # if response is stream
-        return response
+        return [ValueAtom(response)]
     if response.tool_calls is not None:
         result = []
         for tool_call in response.tool_calls:
