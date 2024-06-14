@@ -11,17 +11,18 @@ client = OpenAI() if proxy is None else \
 
 class ChatGPTAgent(Agent):
 
-    def __init__(self, model="gpt-3.5-turbo-0613"):
+    def __init__(self, model="gpt-3.5-turbo-0613", stream_response=False):
         self._model = model
+        self.stream_response = stream_response
 
-    def __call__(self, messages, functions=[], stream=False):
+    def __call__(self, messages, functions=[]):
         if functions == []:
             response = client.chat.completions.create(model=self._model,
                                                       messages=messages,
                                                       temperature=0,
                                                       timeout=15,
-                                                      stream=stream)
-            return response.choices[0].message if not stream else response
+                                                      stream=self.stream_response)
+            return response.choices[0].message if not self.stream_response else response
         tools = []
         for func in functions:
             dict_values = {}

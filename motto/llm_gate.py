@@ -100,7 +100,7 @@ def get_llm_args(metta: MeTTa, prompt_space: SpaceRef, *args):
     functions = []
     msg_atoms = []
     return_stream = False
-    def __msg_update(ag, m, f, a, rs):
+    def __msg_update(ag, m, f, a):
         nonlocal agent, messages, functions, msg_atoms
         if ag is not None:
             agent = ag
@@ -172,10 +172,7 @@ def get_llm_args(metta: MeTTa, prompt_space: SpaceRef, *args):
                     # it can contain equalities as well (another approach would be to
                     # ignore everythins except valid roles)
                     continue
-                elif name == "stream":
-                    bool_val = repr(ch[1]).lower()
-                    if bool_val in ["true", "false"]:
-                        return_stream = eval(bool_val[0].upper() + bool_val[1:])
+
                 else:
                     raise RuntimeError("Unrecognized argument: " + repr(arg))
             else:
@@ -187,10 +184,12 @@ def get_llm_args(metta: MeTTa, prompt_space: SpaceRef, *args):
     # Do not wrap a single message into Message (necessary to avoid double
     # wrapping of single Message argument)
     return agent, messages, functions, \
-        msg_atoms[0] if len(msg_atoms) == 1 else E(S('Messages'), *msg_atoms), return_stream
+        msg_atoms[0] if len(msg_atoms) == 1 else E(S('Messages'), *msg_atoms)
 
-def get_response(metta, response, functions):
+def get_response(metta,agent,  response, functions, msgs_atom):
+
     if not hasattr(response, "tool_calls"):
+        # if response is stream
         return response
     if response.tool_calls is not None:
         result = []
@@ -217,7 +216,7 @@ def get_response(metta, response, functions):
 
 def llm(metta: MeTTa, *args):
     try:
-        agent, messages, functions, msgs_atom, return_stream = get_llm_args(metta, None, *args)
+        agent, messages, functions, msgs_atom= get_llm_args(metta, None, *args)
     except Exception as e:
         # NOTE: we put the error into the log since it can be ignored by the caller
         logger.error(e)
@@ -239,14 +238,12 @@ def llm(metta: MeTTa, *args):
                 raise TypeError(f"GroundedAtom is expected as input to a non-MeTTa agent. Got type({params[p]})={type(params[p])}")
             params[p] = params[p].get_object().value
     try:
-        if return_stream:
-            params["stream"] = True
         response = agent(msgs_atom if isinstance(agent, MettaAgent) else messages,
                         functions, **params)
     except Exception as e:
         logger.error(e)
         raise e
-    return get_response(metta, response, functions)
+    return get_response(metta, agent, response, functions, msgs_atom )
 
 
 @register_atoms(pass_metta=True)
