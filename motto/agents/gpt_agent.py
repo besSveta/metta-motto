@@ -11,17 +11,18 @@ client = OpenAI() if proxy is None else \
 
 class ChatGPTAgent(Agent):
 
-    def __init__(self, model="gpt-3.5-turbo-0613", stream_response=False):
+    def __init__(self, model="gpt-3.5-turbo-0613"):
         self._model = model
-        self.stream_response = stream_response
 
-    def __call__(self, messages, functions=[]):
+    def __call__(self, messages, functions=[],  timeout=15, stream_response=False,
+                                                               max_tokens=None):
         if functions == []:
             response = client.chat.completions.create(model=self._model,
                                                       messages=messages,
                                                       temperature=0,
-                                                      timeout=15,
-                                                      stream=self.stream_response)
+                                                      timeout=timeout,
+                                                      stream=stream_response,
+                                                      max_tokens=max_tokens)
             return response.choices[0].message if not self.stream_response else response
         tools = []
         for func in functions:
@@ -34,6 +35,7 @@ class ChatGPTAgent(Agent):
                                                   tools=tools,
                                                   temperature=0,
                                                   tool_choice="auto",
-                                                  timeout=15)
+                                                  timeout=timeout,
+                                                  max_tokens=max_tokens)
         # FIXME? Only one result is supposed now. API can be changed later if it turns out to be needed.
         return response.choices[0].message
