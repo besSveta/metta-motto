@@ -11,18 +11,21 @@ client = OpenAI() if proxy is None else \
 
 class ChatGPTAgent(Agent):
 
-    def __init__(self, model="gpt-3.5-turbo-0613"):
+    def __init__(self, model="gpt-3.5-turbo-0613", stream=False, timeout=15, max_tokens=None):
         self._model = model
+        self.stream_response = stream
+        self.max_tokens = max_tokens
+        self.timeout = timeout
+        self.max_tokens = max_tokens
 
-    def __call__(self, messages, functions=[],  timeout=15, stream_response=False,
-                                                               max_tokens=None):
+    def __call__(self, messages, functions=[]):
         if functions == []:
             response = client.chat.completions.create(model=self._model,
                                                       messages=messages,
                                                       temperature=0,
-                                                      timeout=timeout,
-                                                      stream=stream_response,
-                                                      max_tokens=max_tokens)
+                                                      timeout=self.timeout,
+                                                      stream=self.stream_response,
+                                                      max_tokens=self.max_tokens)
             return response.choices[0].message if not self.stream_response else response
         tools = []
         for func in functions:
@@ -35,7 +38,7 @@ class ChatGPTAgent(Agent):
                                                   tools=tools,
                                                   temperature=0,
                                                   tool_choice="auto",
-                                                  timeout=timeout,
-                                                  max_tokens=max_tokens)
+                                                  timeout=self.timeout,
+                                                  max_tokens=self.max_tokens)
         # FIXME? Only one result is supposed now. API can be changed later if it turns out to be needed.
         return response.choices[0].message
